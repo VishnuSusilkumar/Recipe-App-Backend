@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import jwt from "jsonwebtoken";
 import User, { IUser } from "../model/userModel";
 import {
   createActivationToken,
@@ -11,75 +12,77 @@ import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { sendEmail } from "../utils/emailService";
 
 export const registerUser = async (req: Request, res: Response) => {
-    const { name, email, password } = req.body;
-  
-    try {
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        res.status(404).json({ success: false, message: "User already exists" });
-        return;
-      }
-  
-      const { token, activationCode } = createActivationToken({
-        name,
-        email,
-        password,
-      });
-  
-      await sendEmail(
-        email,
-        "Activate your account",
-        `Your activation code is: ${activationCode}`
-      );
-  
-      res.status(201).json({
-        success: true,
-        message: "Activation code sent to your email. Please verify to complete registration.",
-        token,
-      });
-    } catch (e: any) {
-      console.log(e);
-      res.status(500).json({ success: false, message: "Server error" });
+  const { name, email, password } = req.body;
+
+  try {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      res.status(404).json({ success: false, message: "User already exists" });
+      return;
     }
-  };
-  
-  export const activateUser = async (req: Request, res: Response) => {
-    const { token, activationCode } = req.body;
-  
-    try {
-      const verified: any = verifyActivationToken(token);
-  
-      if (!verified || verified.activationCode !== activationCode) {
-        res.status(400).json({ success: false, message: "Invalid Activation Code" });
-        return;
-      }
-  
-      const existingUser = await User.findOne({ email: verified.user.email });
-      if (existingUser) {
-        res.status(400).json({ success: false, message: "User already exists" });
-        return;
-      }
-  
-      const hashPassword = await bcrypt.hash(verified.user.password, 10);
-      const newUser = new User({
-        name: verified.user.name,
-        email: verified.user.email,
-        password: hashPassword,
-      });
-  
-      await newUser.save();
-  
-      res.status(201).json({
-        success: true,
-        message: "User Registered Successfully",
-        user: newUser,
-      });
-    } catch (e: any) {
-      console.log(e);
-      res.status(500).json({ success: false, message: "Server error" });
+
+    const { token, activationCode } = createActivationToken({
+      name,
+      email,
+      password,
+    });
+
+    await sendEmail(
+      email,
+      "Activate your account",
+      `Your activation code is: ${activationCode}`
+    );
+
+    res.status(201).json({
+      success: true,
+      message:
+        "Activation code sent to your email. Please verify to complete registration.",
+      token,
+    });
+  } catch (e: any) {
+    console.log(e);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const activateUser = async (req: Request, res: Response) => {
+  const { token, activationCode } = req.body;
+
+  try {
+    const verified: any = verifyActivationToken(token);
+
+    if (!verified || verified.activationCode !== activationCode) {
+      res
+        .status(400)
+        .json({ success: false, message: "Invalid Activation Code" });
+      return;
     }
-  };
-  
+
+    const existingUser = await User.findOne({ email: verified.user.email });
+    if (existingUser) {
+      res.status(400).json({ success: false, message: "User already exists" });
+      return;
+    }
+
+    const hashPassword = await bcrypt.hash(verified.user.password, 10);
+    const newUser = new User({
+      name: verified.user.name,
+      email: verified.user.email,
+      password: hashPassword,
+    });
+
+    await newUser.save();
+
+    res.status(201).json({
+      success: true,
+      message: "User Registered Successfully",
+      user: newUser,
+    });
+  } catch (e: any) {
+    console.log(e);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
@@ -124,6 +127,34 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
+export const refreshToken = async (req: Request, res: Response) => {
+  const { refreshToken } = req.cookies;
+
+  if (!refreshToken) {
+    return res.status(401).json({ message: "No refresh token provided" });
+  }
+
+  try {
+    const decoded: any = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET!
+    );
+
+    const accessToken = generateAccessToken(decoded.id);
+
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: true,
+      maxAge: 15 * 60 * 1000,
+      sameSite: "none",
+    });
+
+    res.status(200).json({ message: "Access token refreshed" });
+  } catch (error) {
+    console.error(error);
+    res.status(403).json({ message: "Invalid or expired refresh token" });
+  }
+};
 
 export const logout = async (req: Request, res: Response) => {
   res.clearCookie("accessToken");
@@ -150,5 +181,26 @@ export const getUserProfile = async (
     console.log(e);
     res.status(500).json({ success: false, message: "Server error" });
     return;
+  }
+};
+
+export const getUserSavedRecipes = async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
+  const userId = req.user?.id;
+
+  try {
+    const user = await User.findById(userId).populate("savedRecipes");
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({ success: true, savedRecipes: user.savedRecipes });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };

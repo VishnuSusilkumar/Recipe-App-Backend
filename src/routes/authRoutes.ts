@@ -2,22 +2,32 @@ import express, { Router } from "express";
 import {
   registerUser,
   login,
+  refreshToken,
   activateUser,
   logout,
   getUserProfile,
+  getUserSavedRecipes,
 } from "../controller/userController";
 import { isAuthenticated } from "../middleware/authMiddleware";
 
-const router: Router = express.Router();
+const authRouter: Router = express.Router();
 
-router.post("/register", registerUser);
+authRouter.post("/register", registerUser);
 
-router.post("/activate", activateUser);
+authRouter.post("/activate", activateUser);
 
-router.post("/login", login);
+authRouter.post("/login", login);
 
-router.get("/profile", isAuthenticated, getUserProfile);
+authRouter.post("/refresh-token", refreshToken as express.RequestHandler);
 
-router.post("/logout", logout);
+authRouter.get("/profile", isAuthenticated, getUserProfile);
 
-export default router;
+authRouter.post("/logout", logout);
+
+authRouter.get(
+  "/saved-recipes",
+  isAuthenticated,
+  getUserSavedRecipes as express.RequestHandler
+);
+
+export default authRouter;

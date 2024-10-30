@@ -1,9 +1,10 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
-import router from "./routes/authRoutes";
+import authRouter from "./routes/authRoutes";
 import connectDB from "./config/db";
 import cors from "cors";
+import recipeRouter from "./routes/recipeRoutes";
 
 dotenv.config();
 
@@ -21,7 +22,8 @@ app.use(
 );
 app.use(cookieParser());
 
-app.use("/api/auth", router);
+app.use("/api/auth", authRouter);
+app.use("/api/recipes", recipeRouter);
 
 const port = process.env.PORT;
 
