@@ -44,7 +44,7 @@ export const searchRecipes = async (req: Request, res: Response) => {
     const response = await axios.get(`${SPOONACULAR_API_URL}/complexSearch`, {
       params: {
         query,
-        number: 20,
+        number: 25,
         apiKey: API_KEY,
         addRecipeInformation: true,
       },
@@ -125,7 +125,6 @@ export const saveRecipePreference = async (
           params: { apiKey: API_KEY },
         }
       );
-      console.log("Response", response);
 
       const {
         id,
